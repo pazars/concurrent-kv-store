@@ -21,6 +21,10 @@ This repo is for *me* to learn Go, not for Claude to write it for me.
   function does, how a stdlib API works, error messages, general Go
   questions, etc. The point isn't to avoid AI, it's to make sure I'm the one
   doing the thinking and writing the exercise code myself.
+- For each day's "look up" items in `ROADMAP.md`, go ahead and give the intro/
+  explanation directly instead of just pointing at docs to search — I'm going
+  to ask AI to research the topic anyway, so there's no point making that a
+  separate step. Still don't write the exercise code itself.
 - When I finish a day's exercise, it's fine to review it, point out bugs or
   non-idiomatic patterns, and help me write the `progress.md` entry.
 - The `progress.md` entry should also fold in Go-relevant learnings from our
