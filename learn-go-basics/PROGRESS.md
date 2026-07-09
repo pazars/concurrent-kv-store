@@ -97,3 +97,73 @@
     - CPython lists also over-allocate on append (amortized growth), but
       like Go, the exact factor is an implementation detail, not part of
       the language spec — same lesson, different language.
+
+**005 — Maps**:
+  - Comma-ok `v, ok := m[k]`: a plain `v := m[k]` on a missing key doesn't
+    panic or error, it returns the value type's **zero value** — which is
+    often a legitimate stored value too (e.g. `0` for `int`), so `ok` is
+    the only way to tell "present with zero value" from "absent".
+  - `delete(m, k)` removes a key; it's a no-op (not an error) if the key
+    isn't there, and it's also safe to call on a `nil` map.
+  - **nil-map asymmetry**: reading from a `nil` map is fine (`len` 0, comma-ok
+    reports `false`, `range` does nothing) — but *writing* (`m[k] = v`)
+    panics: `assignment to entry in nil map`. Reads can be defined as
+    "always miss" against nothing; a write needs a hash table to insert
+    into, and unlike slices there's no auto-allocate-on-write for maps.
+  - Why nil maps are allowed at all rather than banned: it keeps the
+    "every zero value is valid" guarantee (readable without `make`), lets
+    nil vs `make(...)`-but-empty be a meaningful distinction (unconfigured
+    vs configured-but-empty), and avoids forcing an allocation for map
+    variables that never get used.
+  - `range` over a map yields `k, v` pairs; drop one side with `_` if you
+    only need keys or values. Iteration order is **deliberately randomized**
+    per run — need sorted output, collect + sort the keys yourself.
+  - `:=` requires at least one new variable on the left side, so reusing
+    `v, ok` for a second lookup in the same scope is a compile error —
+    that's why repeated lookups need distinct names (`v2, ok2`, etc.),
+    not a style choice.
+  - **New tool: `gofmt`**. Formats a file in place (`gofmt -w file.go`) or
+    just lists files that need it (`gofmt -l .`). Catches things like
+    stray trailing whitespace and inconsistent indentation automatically —
+    worth running before considering any file done, same reflex as `go vet`.
+  - Python contrast:
+    - Go's comma-ok is the `m[k]` (raises `KeyError`) vs `m.get(k)`
+      (returns `None`) split, but collapsed into one lookup expression —
+      no exception, no `None`, just a second boolean return.
+    - Python dicts (3.7+) guarantee insertion order; Go map order is
+      explicitly *not* guaranteed and is randomized to stop people from
+      relying on it.
+
+**006 — Structs & methods**:
+  - Struct bodies hold **fields only** (`name type` pairs) — methods and
+    constructors are never nested inside `type T struct {...}`. They're
+    separate top-level `func` declarations, distinguished only by the
+    receiver clause: `func (c *Counter) Inc()`.
+  - **Pointer receiver vs value receiver** is the whole point: a value
+    receiver gets a *copy* of the struct, so mutations inside the method
+    are invisible to the caller — only a pointer receiver can actually
+    change the caller's struct. First-hand proof: `Inc()` needed
+    `*Counter` to make the increment stick across calls.
+  - Convention once a type has any pointer-receiver method: give **all**
+    its methods a pointer receiver, to avoid mixing receiver kinds on the
+    same type.
+  - Constructors are just an ordinary func by convention (`NewT`), not a
+    language feature — no `__init__`. Capitalized like any other exported
+    name; caught myself defaulting to lowercase `newCounter` out of Python
+    habit before fixing it to `NewCounter`.
+  - **Auto-`&`/auto-`*` at call sites, and the asymmetry between them**:
+    - value → pointer-receiver method: Go rewrites `c.Inc()` to
+      `(&c).Inc()` automatically, but only if `c` is *addressable* (a
+      plain variable is; a literal like `Counter{}.Inc()` is not and
+      won't compile).
+    - pointer → value-receiver method: Go rewrites `counter.Value()` to
+      `(*counter).Value()` automatically, and this one always compiles —
+      no addressability check — which pushes the risk to runtime: if
+      `counter` were `nil`, it'd panic on the dereference instead of
+      failing to compile.
+  - Python contrast:
+    - No `__init__`/`self` magic — receivers are just a syntactic marker
+      on an otherwise ordinary function, and "constructor" is a naming
+      convention (`NewT`), not a reserved method name.
+    - Python has no copy-vs-reference choice per method — `self` is
+      always a reference. Go makes you pick, explicitly, per method.
