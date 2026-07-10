@@ -167,3 +167,45 @@
       convention (`NewT`), not a reserved method name.
     - Python has no copy-vs-reference choice per method — `self` is
       always a reference. Go makes you pick, explicitly, per method.
+
+**007 — Pointers**:
+  - `&x` takes the address of `x` (→ `*T`); `*p` dereferences — reads through
+    the pointer, or writes through it on the left of `=`. The whole mechanism
+    is just address-of / go-to-that-address, in either direction.
+  - Nil pointers: zero value of any pointer type is `nil`; dereferencing one
+    panics at runtime (`invalid memory address or nil pointer dereference`),
+    no compile-time check.
+  - **Methods can only be defined on named types declared in the same
+    package** — `int`/`*int` aren't eligible receivers, even though `*Counter`
+    (day 006) was fine. First draft tried `func (s *int) pointInc()` and hit
+    this directly; the fix wasn't a syntax tweak, it was switching to plain
+    functions (`func PointInc(val *int)`) since the exercise wanted a
+    function taking a pointer param, not a method.
+  - **`++`/`--` are statements, not expressions** — they can never appear
+    where a value is expected (`return s++`, `&s++`, `f(s++)` are all
+    invalid). Go deliberately kept them statement-only, unlike C where
+    `x++` evaluates to a value and can be composed/abused. General test for
+    statement vs expression: can it go on the right of `=`, as a `return`
+    value, or as an operand to `&`/`*`? If not, it's a statement.
+  - `*val++` parses as `(*val)++` (dereference, then increment the pointee),
+    not `*(val++)`. Confirmed by running it. Reasoning: `++` is always a
+    suffix on top of a complete preceding expression, never an inner piece —
+    so `*val` is built first as an ordinary unary-`*` expression, then `++`
+    applies to that whole thing. Also `val++` alone (incrementing the
+    pointer itself) wouldn't compile regardless — Go has no pointer
+    arithmetic outside `unsafe`, so that parse wasn't even possible here.
+  - Smaller bugs hit along the way: method name called with different
+    casing than declared (`PointInc` vs `pointInc` — Go is case-sensitive,
+    no fuzzy matching); assigning to a not-yet-declared variable with `=`
+    instead of `:=` (same "at least one new var" rule from day 005's
+    comma-ok, just via plain assignment this time instead of multi-assign).
+  - Python contrast:
+    - Python has no pointers in the C/Go sense — every name is already a
+      reference to its object, so there's no separate `&`/`*` step and no
+      copy-vs-pointer choice to make per call; Go's pointer receiver vs
+      value receiver (day 006) only exists *because* Go defaults to copying.
+    - Python has no `++`/`--` at all (`x += 1` only) — so the
+      "statement, not expression" trap doesn't come up the same way, but
+      the general lesson (assignment is a statement, not usable as a value)
+      is the same one Python enforces even more strictly (`y = (x = 5)` is
+      also illegal there).
