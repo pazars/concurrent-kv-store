@@ -235,3 +235,47 @@
       there's no stack unwinding — the "chain" is just each error holding a
       reference to the one it wrapped, and `errors.Is` is a plain loop over
       that chain, not language-level exception propagation.
+
+**009 — Interfaces**:
+  - An interface declares a **method shape only** — name, params, return
+    type — and never references any concrete type. First draft wrote
+    `String(*StringCol) string` inside the interface, which actually
+    declares a different method (one taking a `*StringCol` argument) that
+    no struct implements. The fix was dropping the receiver-shaped
+    parameter entirely: `String() string`. The receiver lives on the
+    *method* (`func (sc *StringCol) String() string`), never on the
+    interface — that separation (interface knows nothing about who
+    implements it) is the whole mechanism behind implicit satisfaction.
+  - No `implements` keyword: a type satisfies an interface automatically
+    the moment its method set matches. Confirmed by writing
+    `func printString(si Stringer)` and passing `&sc` — it works with zero
+    declared link between `StringCol` and `Stringer`.
+  - **`String()` should build and return a string, not print.** First
+    draft had `String()` calling `fmt.Printf` internally and separately
+    returning an unrelated `"hello"`. Convention: the method just returns
+    the representation (`fmt.Sprintf(...)`); the *caller* (`fmt.Println`,
+    my own `printString`, etc.) decides whether/how to print it.
+  - **Method sets and pointer receivers, the subtle gotcha**: `sc.String()`
+    works directly because `sc` is an addressable variable — Go silently
+    rewrites it to `(&sc).String()` (same auto-`&` rule from day 006).
+    But passing `sc` (the value) where a `Stringer` is expected does
+    **not** get this rewrite — only `*StringCol` is in `Stringer`'s
+    satisfying set, not `StringCol`. Tested directly: `fmt.Println(sc)`
+    prints the default `{abc 123}` dump (falls back to default formatting,
+    `Stringer` not satisfied), while `fmt.Println(&sc)` uses `String()`.
+    The rule: pointer-receiver methods belong to `*T`'s method set only;
+    value-receiver methods belong to both `T`'s and `*T`'s.
+  - `fmt.Stringer` (stdlib, `fmt` package) is this exact interface —
+    `fmt.Println`/`Printf("%v")` check for it via reflection and call it
+    automatically when present, which is how types get custom print
+    output without a special dunder-style method name being required by
+    the language itself (just a convention `fmt` checks for).
+  - Python contrast:
+    - Structural typing here is the static-checked analog of Python duck
+      typing — `typing.Protocol` is the closest match (shape-based, not
+      inheritance-based), rather than needing an ABC/`implements` link.
+    - No `__str__`-style required magic name — any method matching the
+      shape works, and `fmt` specifically looks for one named `String`.
+    - Python's `self` is always a reference, so there's no equivalent to
+      the pointer-vs-value method-set split — that split only exists in
+      Go because value receivers copy.
