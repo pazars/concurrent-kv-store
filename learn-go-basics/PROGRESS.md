@@ -209,3 +209,29 @@
       the general lesson (assignment is a statement, not usable as a value)
       is the same one Python enforces even more strictly (`y = (x = 5)` is
       also illegal there).
+
+**008 — Idiomatic errors**:
+  - **Sentinel errors**: a predeclared `var ErrX = errors.New("...")`. Callers
+    compare against this specific value to detect a specific failure — the
+    role a custom exception class plays in Python, except it's an ordinary
+    value, not a type you catch.
+  - `errors.New("msg")` makes a plain error value; two calls with the same
+    string are still *different* values (identity, not text, is what gets
+    compared) — that's why `==` and sentinels work at all.
+  - `fmt.Errorf("doing X: %w", err)` wraps `err` in a new error: the message
+    includes it, and Go generates an `Unwrap() error` on the result so the
+    original is still reachable underneath.
+  - **Why not plain `==`**: wrapping produces a *different* error value, so
+    `err == ErrNotFound` fails once the sentinel is wrapped inside a
+    `fmt.Errorf`, even though the sentinel is right there in the chain.
+    `errors.Is(err, target)` walks the chain via repeated `Unwrap()` calls
+    and finds it regardless of wrap depth.
+  - Re-hit the Day 003 style rule (error strings lowercase, no trailing
+    punctuation) — first draft capitalized the wrapped message
+    (`"Substring %s %w"`); same convention applies to wrapped errors too,
+    not just top-level ones.
+  - Python contrast:
+    - Closest analog is a custom exception + `isinstance`/`except`, but
+      there's no stack unwinding — the "chain" is just each error holding a
+      reference to the one it wrapped, and `errors.Is` is a plain loop over
+      that chain, not language-level exception propagation.
